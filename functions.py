@@ -1,5 +1,8 @@
+
 import inngest
 from dotenv import load_dotenv
+
+from report_store import reports
 
 
 load_dotenv()
@@ -10,6 +13,14 @@ client = inngest.Inngest(
 )
 
 
+async def build_report(report_id: str, topic: str):
+    return {
+        "report_id": report_id,
+        "topic": topic,
+        "summary": f"Background report generated for: {topic}",
+    }
+
+
 @client.create_function(
     fn_id="say-hello",
     trigger=inngest.TriggerEvent(event="test/hello"),
@@ -17,3 +28,26 @@ client = inngest.Inngest(
 async def say_hello(ctx: inngest.Context):
     await ctx.step.sleep("wait-before-response", 5)
     return "Hello from the background!"
+
+
+@client.create_function(
+    fn_id="make-report",
+    trigger=inngest.TriggerEvent(event="report/requested"),
+)
+async def make_report(ctx: inngest.Context):
+    report_id = ctx.event.data["id"]
+    topic = ctx.event.data["topic"]
+
+    await ctx.step.sleep("do-the-slow-work", 8)
+
+    result = await ctx.step.run(
+        "build-report",
+        build_report,
+        report_id,
+        topic,
+    )
+
+    reports[report_id]["status"] = "done"
+    reports[report_id]["result"] = result
+
+    return result
