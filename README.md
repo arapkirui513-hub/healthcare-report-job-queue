@@ -132,6 +132,37 @@ Successful requests return `202 Accepted`:
 }
 ```
 
+### Verified asynchronous execution
+
+Real local execution evidence:
+
+```text
+=== POST /reports ===
+Status: 202
+Elapsed: 44.65 ms
+{
+    "id": "72051314-5bcd-451f-901b-83fe936ef587",
+    "topic": "Biomedical Equipment Maintenance Operations Report - Final Evidence",
+    "status": "pending"
+}
+
+=== Polling ===
+20:20:58.626 -> pending
+20:20:59.133 -> done
+
+=== Final result ===
+{
+    "id": "72051314-5bcd-451f-901b-83fe936ef587",
+    "topic": "Biomedical Equipment Maintenance Operations Report - Final Evidence",
+    "status": "done",
+    "result": {
+        "report_id": "72051314-5bcd-451f-901b-83fe936ef587",
+        "summary": "Background report generated for: Biomedical Equipment Maintenance Operations Report - Final Evidence",
+        "topic": "Biomedical Equipment Maintenance Operations Report - Final Evidence"
+    }
+}
+```
+
 ### Check report status
 
 ```powershell
@@ -170,6 +201,8 @@ POST /reports
 ```
 
 No background event is sent.
+
+Invalid input is rejected immediately with `400` and no event is sent, while valid jobs that fail during processing are retried automatically because the failure may be temporary.
 
 ### Background failure
 
@@ -259,9 +292,10 @@ Sunday at 22:00:
 | Function | Trigger | Purpose |
 |---|---|---|
 | `say-hello` | `test/hello` | Stage 1 background-job demonstration |
-| `make-report` | `report/requested` | Processes report jobs |
-| `make-report (failure)` | `inngest/function.failed` | Records final job failure |
+| `make-report` | `report/requested` | Processes report jobs with retries |
 | `heartbeat` | `* * * * *` | Reports pending/done/failed counts |
+
+The `make-report` failure handler is triggered by `inngest/function.failed` and records the final failed state.
 
 ## Execution evidence
 
