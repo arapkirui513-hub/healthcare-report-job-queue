@@ -65,3 +65,29 @@ async def make_report(ctx: inngest.Context):
     reports[report_id]["result"] = result
 
     return result
+
+
+@client.create_function(
+    fn_id="heartbeat",
+    trigger=inngest.TriggerCron(cron="* * * * *"),
+)
+async def heartbeat(ctx: inngest.Context):
+    counts = {
+        "pending": 0,
+        "done": 0,
+        "failed": 0,
+    }
+
+    for report in reports.values():
+        status = report.get("status")
+        if status in counts:
+            counts[status] += 1
+
+    print(
+        "Heartbeat:",
+        f"pending={counts['pending']}",
+        f"done={counts['done']}",
+        f"failed={counts['failed']}",
+    )
+
+    return counts

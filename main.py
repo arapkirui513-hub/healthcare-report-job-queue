@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 import inngest
 from inngest.fast_api import serve
 
-from functions import client, make_report, say_hello
+from functions import client, heartbeat, make_report, say_hello
 from report_store import reports
 
 
@@ -71,5 +71,5 @@ def get_report(report_id: str):
 serve(
     app,
     client,
-    [say_hello, make_report],
+    [say_hello, make_report, heartbeat],
 )
