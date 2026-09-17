@@ -1,4 +1,3 @@
-
 import inngest
 from dotenv import load_dotenv
 
@@ -14,6 +13,9 @@ client = inngest.Inngest(
 
 
 async def build_report(report_id: str, topic: str):
+    if topic == "fail":
+        raise RuntimeError("Intentional report generation failure")
+
     return {
         "report_id": report_id,
         "topic": topic,
@@ -30,9 +32,21 @@ async def say_hello(ctx: inngest.Context):
     return "Hello from the background!"
 
 
+async def mark_report_failed(ctx: inngest.Context):
+    report_id = ctx.event.data.get("event", {}).get("data", {}).get("id")
+
+    if report_id and report_id in reports:
+        reports[report_id]["status"] = "failed"
+        reports[report_id]["error"] = "Report generation failed after retries"
+
+    return {"status": "failed", "report_id": report_id}
+
+
 @client.create_function(
     fn_id="make-report",
     trigger=inngest.TriggerEvent(event="report/requested"),
+    retries=2,
+    on_failure=mark_report_failed,
 )
 async def make_report(ctx: inngest.Context):
     report_id = ctx.event.data["id"]
