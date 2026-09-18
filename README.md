@@ -190,6 +190,18 @@ The HTTP request returned 202 Accepted with status: pending before the backgroun
 
 The report engine uses synchronous Playwright inside asyncio.to_thread() so the browser subprocess can run correctly in the Windows/Inngest execution environment.
 
+### Slow background-job runtime verification
+
+The report polling test checks the status every 2 seconds. A real report-generation run produced:
+
+```text
+Poll 1: status=pending
+Poll 2: status=pending
+Poll 3: status=pending
+Poll 4: status=done
+```
+This confirms that the API initially returns a pending report and that the background workflow remains pending across multiple polling intervals before completing the report-generation pipeline.
+
 ### Check report status
 
 ```powershell
@@ -446,6 +458,10 @@ This is intentional for the local assignment implementation.
 Restarting the FastAPI process clears the report records. Inngest provides durable execution for the background function, but the application's report state is not yet persisted in a database.
 
 A production implementation would use durable application storage such as PostgreSQL.
+
+### Synthetic database fixture
+
+The repository includes `report.db` as a checked-in synthetic fixture containing 200 maintenance-report records. It is intentionally committed so the report-generation pipeline is immediately reproducible after cloning without requiring a separate database-seeding step.
 
 ## Git checkpoints
 

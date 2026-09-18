@@ -71,6 +71,24 @@ async def make_report(ctx: inngest.Context):
     report_id = ctx.event.data["id"]
     topic = ctx.event.data["topic"]
 
+    existing_report = reports.get(report_id)
+
+    # Application-level idempotency backup:
+    # completed or permanently failed reports do not run again.
+    # Pending reports remain eligible so Inngest retries can continue normally.
+    if existing_report and existing_report.get("status") == "done":
+        return existing_report["result"]
+
+    if existing_report and existing_report.get("status") == "failed":
+        return {
+            "status": "failed",
+            "report_id": report_id,
+            "error": existing_report.get(
+                "error",
+                "Report generation failed after retries",
+            ),
+        }
+
     await ctx.step.sleep("do-the-slow-work", timedelta(seconds=8))
 
     result = await ctx.step.run(
