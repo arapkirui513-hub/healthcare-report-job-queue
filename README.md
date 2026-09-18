@@ -348,6 +348,8 @@ The Inngest dashboard shows the parent `make-report` execution with `build-repor
 
 ![Stage 3 retry trace](stage-3-retry-trace.png)
 
+![Failure retry regression](21-failure-retry-regression.png)
+
 The separate failure-handler run is retained as supporting evidence:
 
 ![Stage 3 failure handler](stage-3-failure-handler.png)
@@ -413,6 +415,8 @@ The Inngest Development Server showed the five corresponding `make-report` execu
 ![Concurrency execution evidence](18-concurrency-queue.png)
 
 ![Concurrency configuration](20-concurrency-config.png)
+
+A queue should be allowed to slow down when work is expensive or downstream capacity is limited, so jobs wait safely instead of overwhelming the service or causing failures.
 
 ## Implementation stages
 
@@ -494,13 +498,25 @@ Response: {"detail":"report not found"}
 
 ### Idempotency
 
-`make-report` uses Inngest-native idempotency with:
+`make-report` uses two layers of duplicate protection.
+
+**Primary: Inngest-native idempotency**
 
 ```python
 idempotency="event.data.id"
 ```
 
 The report ID is the idempotency key. This prevents duplicate `report/requested` events with the same report ID from triggering another `make-report` execution within the configured 24-hour idempotency window.
+
+**Secondary: application-level status guard**
+
+Before starting the slow work, `make-report` checks the existing report state:
+
+- `done` reports return their existing result without rebuilding the report.
+- `failed` reports return the recorded failure without starting another build.
+- `pending` reports remain eligible to execute so Inngest retries are not blocked.
+
+This provides application-level protection in addition to the Inngest-native idempotency mechanism.
 
 #### Runtime verification
 
