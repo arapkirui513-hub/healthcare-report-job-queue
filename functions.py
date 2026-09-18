@@ -45,6 +45,7 @@ async def mark_report_failed(ctx: inngest.Context):
 @client.create_function(
     fn_id="make-report",
     trigger=inngest.TriggerEvent(event="report/requested"),
+    idempotency="event.data.id",
     retries=2,
     on_failure=mark_report_failed,
 )

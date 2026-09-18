@@ -375,7 +375,7 @@ The core background-job workflow, failure handling, and scheduled heartbeat have
 
 Invalid requests are rejected before any background event is sent.
 
-``text
+```text
 === Missing topic ===
 Status: 400
 Response: {"detail":"topic is required"}
@@ -383,3 +383,33 @@ Response: {"detail":"topic is required"}
 === Unknown report ===
 Status: 404
 Response: {"detail":"report not found"}
+```
+
+### Idempotency
+
+`make-report` uses Inngest-native idempotency with:
+
+```python
+idempotency="event.data.id"
+```
+
+The report ID is the idempotency key. This prevents duplicate `report/requested` events with the same report ID from triggering another `make-report` execution within the configured 24-hour idempotency window.
+
+#### Runtime verification
+
+The idempotency test:
+
+1. Created a report through `POST /reports`.
+2. Waited for the original background job to complete.
+3. Sent a second `report/requested` event using the same report ID.
+4. Checked the Inngest Development Server run history.
+
+Test report ID:
+
+```text
+e855888f-a9ce-4af4-95b9-a758fc0d2858
+```
+
+The run history showed one `make-report` execution for the test while the surrounding runs were scheduled heartbeat executions. No second `make-report` execution appeared after the duplicate event.
+
+This verifies the configured idempotency behavior in the local Inngest Development Server.
