@@ -301,15 +301,19 @@ The `make-report` failure handler is triggered by `inngest/function.failed` and 
 
 ### Stage 3 - failure handling
 
-The Inngest dashboard shows the failed `make-report` execution and the completed failure handler.
+The Inngest dashboard shows the parent `make-report` execution with `build-report` running three total attempts: the initial attempt plus two retries, followed by terminal failure.
 
-![Stage 3 failure handling](week-07-stage-3-failure-detail.png)
+![Stage 3 retry trace](stage-3-retry-trace.png)
+
+The separate failure-handler run is retained as supporting evidence:
+
+![Stage 3 failure handler](stage-3-failure-handler.png)
 
 ### Stage 4 - cron heartbeat
 
 The Inngest dashboard shows the heartbeat firing on the `* * * * *` schedule and returning report counts.
 
-![Stage 4 heartbeat](week-07-stage-4-heartbeat-detail.png)
+![Stage 4 heartbeat](stage-4-cron-heartbeat.png)
 
 Example observed output:
 
