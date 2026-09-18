@@ -370,3 +370,16 @@ Stage 4: add cron heartbeat
 ## Project status
 
 The core background-job workflow, failure handling, and scheduled heartbeat have been implemented and verified locally with the Inngest Development Server.
+
+### HTTP validation evidence
+
+Invalid requests are rejected before any background event is sent.
+
+``text
+=== Missing topic ===
+Status: 400
+Response: {"detail":"topic is required"}
+
+=== Unknown report ===
+Status: 404
+Response: {"detail":"report not found"}
