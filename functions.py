@@ -1,4 +1,6 @@
 import asyncio
+from datetime import timedelta
+
 import inngest
 from dotenv import load_dotenv
 
@@ -30,12 +32,20 @@ async def build_report(report_id: str, topic: str):
     }
 
 
+async def restart_step_one():
+    return "step one complete"
+
+
+async def restart_step_three():
+    return "step three complete"
+
+
 @client.create_function(
     fn_id="say-hello",
     trigger=inngest.TriggerEvent(event="test/hello"),
 )
 async def say_hello(ctx: inngest.Context):
-    await ctx.step.sleep("wait-before-response", 5)
+    await ctx.step.sleep("wait-before-response", timedelta(seconds=5))
     return "Hello from the background!"
 
 
@@ -54,11 +64,14 @@ async def mark_report_failed(ctx: inngest.Context):
     trigger=inngest.TriggerEvent(event="report/requested"),
     idempotency="event.data.id",
     retries=2,
+    concurrency=[{"limit": 2}],
     on_failure=mark_report_failed,
 )
 async def make_report(ctx: inngest.Context):
     report_id = ctx.event.data["id"]
     topic = ctx.event.data["topic"]
+
+    await ctx.step.sleep("do-the-slow-work", timedelta(seconds=8))
 
     result = await ctx.step.run(
         "build-report",
@@ -71,6 +84,33 @@ async def make_report(ctx: inngest.Context):
     reports[report_id]["result"] = result
 
     return result
+
+
+@client.create_function(
+    fn_id="restart-proof",
+    trigger=inngest.TriggerEvent(event="restart/test"),
+)
+async def restart_proof(ctx: inngest.Context):
+    step_one = await ctx.step.run(
+        "step-one",
+        restart_step_one,
+    )
+
+    await ctx.step.sleep(
+        "step-two",
+        timedelta(seconds=8),
+    )
+
+    step_three = await ctx.step.run(
+        "step-three",
+        restart_step_three,
+    )
+
+    return {
+        "status": "completed",
+        "step_one": step_one,
+        "step_three": step_three,
+    }
 
 
 @client.create_function(

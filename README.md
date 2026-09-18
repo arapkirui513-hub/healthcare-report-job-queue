@@ -322,7 +322,8 @@ Sunday at 22:00:
 | Function | Trigger | Purpose |
 |---|---|---|
 | `say-hello` | `test/hello` | Stage 1 background-job demonstration |
-| `make-report` | `report/requested` | Processes report jobs with retries |
+| `make-report` | `report/requested` | Processes report jobs with retries and concurrency limit of 2 |
+| `restart-proof` | `restart/test` | Three-step durable restart demonstration |
 | `heartbeat` | `* * * * *` | Reports pending/done/failed counts |
 
 The `make-report` failure handler is triggered by `inngest/function.failed` and records the final failed state.
@@ -354,6 +355,52 @@ Example observed output:
   "pending": 0
 }
 ```
+
+### Durable restart verification
+
+The `restart-proof` function demonstrates durable step execution across an application restart.
+
+The function contains three steps:
+
+1. `step-one` - checkpointed `step.run` step.
+2. `step-two` - durable 8-second sleep.
+3. `step-three` - checkpointed `step.run` step.
+
+The restart experiment was performed by starting a `restart/test` event, allowing `step-one` to complete and `step-two` to begin, then stopping the FastAPI process while the Inngest Development Server remained running. FastAPI was restarted during the same execution.
+
+After the application restarted, the existing execution resumed and completed `step-two` and `step-three`. The Inngest trace retained the completed `step-one` checkpoint rather than creating a second `step-one` execution.
+
+The completed run showed:
+
+```text
+restart-proof
+├── step-one       91ms
+├── step-two       8.000s
+├── step-three     1m 31s
+└── Finalization   121ms
+```
+
+The extended total duration reflects the application restart during the workflow.
+
+![Durable restart verification](19-durable-restart.png)
+
+This verifies that completed Inngest steps are preserved across an application restart and that the workflow can resume from its checkpoint.
+
+### Concurrency verification
+
+The `make-report` function is configured with a function-level concurrency limit of 2:
+
+```python
+concurrency=[{"limit": 2}]
+```
+
+Five `report/requested` events were submitted concurrently. All five requests returned `202 Accepted` with an initial `pending` status.
+
+The Inngest Development Server showed the five corresponding `make-report` executions. The function configuration confirms a maximum concurrency of 2 for the function.
+
+![Concurrency execution evidence](18-concurrency-queue.png)
+
+![Concurrency configuration](20-concurrency-config.png)
 
 ## Implementation stages
 
@@ -413,7 +460,7 @@ Phase B: integrate real biomedical report generation
 
 ## Project status
 
-The core background-job workflow, failure handling, scheduled heartbeat, idempotency, and Phase B biomedical report-generation pipeline have been implemented and verified locally with the Inngest Development Server.
+The core background-job workflow, failure handling, scheduled heartbeat, idempotency, concurrency control, durable restart behavior, and Phase B biomedical report-generation pipeline have been implemented and verified locally with the Inngest Development Server.
 
 ### HTTP validation evidence
 
