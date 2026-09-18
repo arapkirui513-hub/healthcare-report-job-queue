@@ -6,9 +6,11 @@ The project demonstrates the durable background-job pattern:
 
 **Accept fast -> work in the background -> report status**
 
+The current Phase B implementation connects the background job to a real biomedical maintenance report-generation pipeline.
+
 ## What it does
 
-The API accepts a report request and immediately returns a `202 Accepted` response with a report ID.
+The API accepts a report request and returns a `202 Accepted` response with a report ID before the background report completes.
 
 Inngest then processes the report asynchronously.
 
@@ -17,11 +19,14 @@ The system currently demonstrates:
 - FastAPI HTTP API
 - Inngest background functions
 - Durable step execution
-- 8-second simulated slow work
+- Real biomedical maintenance report generation
+- SQLite-backed synthetic maintenance data
+- HTML -> PDF rendering with Playwright and Google Chrome
 - Report status tracking
 - Retry handling
 - Failure handling
 - Scheduled cron heartbeat
+- Inngest-native idempotency
 - In-memory report state for local development
 
 ## Architecture
@@ -41,11 +46,17 @@ Inngest event: report/requested
   v
 make-report
   |
-  +-- do-the-slow-work
-  |       |
-  |       +-- 8 second durable sleep
-  |
   +-- build-report
+  |       |
+  |       +-- SQLite maintenance data
+  |       |
+  |       +-- aggregate report data
+  |       |
+  |       +-- build HTML
+  |       |
+  |       +-- Playwright + Google Chrome
+  |       |
+  |       +-- A4 PDF
   |       |
   |       +-- success -> done
   |       |
@@ -68,6 +79,8 @@ GET /reports/{id}
 - FastAPI
 - Uvicorn
 - Inngest Python SDK
+- Playwright
+- Google Chrome
 - Node.js / npm for the Inngest Dev Server
 
 ## Local setup
@@ -82,7 +95,7 @@ py -3.13 -m venv .venv
 Install dependencies:
 
 ```powershell
-python -m pip install fastapi uvicorn inngest python-dotenv
+python -m pip install -r requirements.txt
 ```
 
 Start FastAPI:
@@ -132,36 +145,50 @@ Successful requests return `202 Accepted`:
 }
 ```
 
-### Verified asynchronous execution
+### Verified Phase B execution
 
-Real local execution evidence:
+The background job now executes the real biomedical maintenance report-generation pipeline.
+
+Final end-to-end local verification:
 
 ```text
 === POST /reports ===
 Status: 202
-Elapsed: 44.65 ms
-{
-    "id": "72051314-5bcd-451f-901b-83fe936ef587",
-    "topic": "Biomedical Equipment Maintenance Operations Report - Final Evidence",
-    "status": "pending"
-}
+Elapsed: ~2039 ms
 
-=== Polling ===
-20:20:58.626 -> pending
-20:20:59.133 -> done
+Report ID:
+2b61171b-926e-4fea-b8f7-19dfaa1f2e09
 
-=== Final result ===
+Initial status:
+pending
+
+Final status:
+done
+```
+
+The completed job returned:
+
+```json
 {
-    "id": "72051314-5bcd-451f-901b-83fe936ef587",
-    "topic": "Biomedical Equipment Maintenance Operations Report - Final Evidence",
-    "status": "done",
-    "result": {
-        "report_id": "72051314-5bcd-451f-901b-83fe936ef587",
-        "summary": "Background report generated for: Biomedical Equipment Maintenance Operations Report - Final Evidence",
-        "topic": "Biomedical Equipment Maintenance Operations Report - Final Evidence"
-    }
+  "id": "2b61171b-926e-4fea-b8f7-19dfaa1f2e09",
+  "topic": "Biomedical Equipment Maintenance Operations Report - Final Phase B Verification",
+  "status": "done",
+  "result": {
+    "report_id": "2b61171b-926e-4fea-b8f7-19dfaa1f2e09",
+    "topic": "Biomedical Equipment Maintenance Operations Report - Final Phase B Verification",
+    "summary": "Biomedical equipment maintenance report generated for: Biomedical Equipment Maintenance Operations Report - Final Phase B Verification",
+    "file": "reports\\2b61171b-926e-4fea-b8f7-19dfaa1f2e09.pdf",
+    "total_reports": 200,
+    "average_confidence": 0.884
+  }
 }
 ```
+
+The generated PDF was verified at 67,592 bytes.
+
+The HTTP request returned 202 Accepted with status: pending before the background report completed. The measured request latency was approximately 2.04 seconds. This confirms that the report-generation work completes outside the initial request lifecycle.
+
+The report engine uses synchronous Playwright inside asyncio.to_thread() so the browser subprocess can run correctly in the Windows/Inngest execution environment.
 
 ### Check report status
 
@@ -179,7 +206,10 @@ Completed reports contain:
   "result": {
     "report_id": "report-id",
     "topic": "Biomedical Equipment Maintenance Operations Report",
-    "summary": "Background report generated for: Biomedical Equipment Maintenance Operations Report"
+    "summary": "Biomedical equipment maintenance report generated for: Biomedical Equipment Maintenance Operations Report",
+    "file": "reports\\report-id.pdf",
+    "total_reports": 200,
+    "average_confidence": 0.884
   }
 }
 ```
@@ -347,6 +377,19 @@ Intentional failure path, two retries, and final failure handling.
 
 One-minute cron heartbeat with report-state counts.
 
+### Phase B
+
+Replaced the simulated report-building operation with the real biomedical maintenance report-generation pipeline.
+
+The background job now executes:
+
+1. Query synthetic maintenance data from SQLite.
+2. Calculate report aggregations.
+3. Build the HTML report.
+4. Render the report to A4 PDF using Playwright and system Google Chrome.
+5. Store the generated PDF under `reports/{id}.pdf`.
+6. Return the generated artifact metadata through the report status endpoint.
+
 ## Current storage limitation
 
 Report state is currently stored in an in-memory Python dictionary.
@@ -365,11 +408,12 @@ Stage 1: add Inngest background function
 Stage 2: add background report jobs
 Stage 3: add retries and failure handling
 Stage 4: add cron heartbeat
+Phase B: integrate real biomedical report generation
 ```
 
 ## Project status
 
-The core background-job workflow, failure handling, and scheduled heartbeat have been implemented and verified locally with the Inngest Development Server.
+The core background-job workflow, failure handling, scheduled heartbeat, idempotency, and Phase B biomedical report-generation pipeline have been implemented and verified locally with the Inngest Development Server.
 
 ### HTTP validation evidence
 
@@ -397,19 +441,19 @@ The report ID is the idempotency key. This prevents duplicate `report/requested`
 
 #### Runtime verification
 
-The idempotency test:
+The Phase B idempotency test uses the real biomedical maintenance report-generation workflow:
 
 1. Created a report through `POST /reports`.
-2. Waited for the original background job to complete.
+2. Waited for the real PDF-generation job to reach done.
 3. Sent a second `report/requested` event using the same report ID.
 4. Checked the Inngest Development Server run history.
 
 Test report ID:
 
 ```text
-e855888f-a9ce-4af4-95b9-a758fc0d2858
+dd29e1f5-d179-4092-ba1b-7744798d84fd
 ```
 
 The run history showed one `make-report` execution for the test while the surrounding runs were scheduled heartbeat executions. No second `make-report` execution appeared after the duplicate event.
 
-This verifies the configured idempotency behavior in the local Inngest Development Server.
+This verifies the configured Inngest-native idempotency behavior against the real Phase B report-generation workflow in the local Inngest Development Server.

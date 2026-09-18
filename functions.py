@@ -1,6 +1,8 @@
+import asyncio
 import inngest
 from dotenv import load_dotenv
 
+from report_engine.render import generate_report
 from report_store import reports
 
 
@@ -16,10 +18,15 @@ async def build_report(report_id: str, topic: str):
     if topic == "fail":
         raise RuntimeError("Intentional report generation failure")
 
+    result = await asyncio.to_thread(generate_report, report_id)
+
     return {
         "report_id": report_id,
         "topic": topic,
-        "summary": f"Background report generated for: {topic}",
+        "summary": f"Biomedical equipment maintenance report generated for: {topic}",
+        "file": result["file"],
+        "total_reports": result["total_reports"],
+        "average_confidence": result["average_confidence"],
     }
 
 
@@ -52,8 +59,6 @@ async def mark_report_failed(ctx: inngest.Context):
 async def make_report(ctx: inngest.Context):
     report_id = ctx.event.data["id"]
     topic = ctx.event.data["topic"]
-
-    await ctx.step.sleep("do-the-slow-work", 8)
 
     result = await ctx.step.run(
         "build-report",
